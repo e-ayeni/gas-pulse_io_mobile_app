@@ -1,0 +1,44 @@
+name: gas_pulse_io
+description: "GasPulse - Smart LPG Cylinder Monitoring"
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.9.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+
+  # State management
+  provider: ^6.1.2
+
+  # Networking
+  dio: ^5.7.0
+
+  # Local storage
+  shared_preferences: ^2.3.4
+
+  # Routing
+  go_router: ^14.8.1
+
+  # BLE
+  flutter_blue_plus: ^1.35.2
+
+  # Charts
+  fl_chart: ^0.70.2
+
+  # Utils
+  intl: ^0.20.2
+  timeago: ^3.7.0
+  permission_handler: ^11.3.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true

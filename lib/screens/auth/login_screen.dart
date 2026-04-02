@@ -171,7 +171,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     Text("Don't have an account? ",
                         style: TextStyle(color: Colors.grey.shade600)),
                     GestureDetector(
-                      onTap: () => context.go('/register'),
+                      onTap: () => context.push('/register'),
                       child: const Text(
                         'Create Account',
                         style: TextStyle(

@@ -37,6 +37,7 @@ class _DashboardTabState extends State<DashboardTab> {
     final bt = context.watch<BleProvider>();
     final isLoggedIn = auth.isLoggedIn;
     final isBusinessUser = auth.user != null && (auth.user!.isCompanyAdmin || auth.user!.isSystemAdmin);
+    final devices = bt.deviceList;
 
     return CustomScrollView(
       slivers: [
@@ -57,104 +58,125 @@ class _DashboardTabState extends State<DashboardTab> {
           ],
         ),
 
-        // ── Nearby scales via Bluetooth (always visible) ──
-        if (bt.deviceList.isNotEmpty) ...[
-          const SliverToBoxAdapter(
+        // ── My Cylinders overview ──
+        if (devices.isNotEmpty) ...[
+          SliverToBoxAdapter(
             child: Padding(
-              padding: EdgeInsets.fromLTRB(20, 8, 20, 8),
-              child: Text(
-                'Nearby Scales',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
+              child: Row(
+                children: [
+                  const Text(
+                    'My Cylinders',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                  ),
+                  const Spacer(),
+                  TextButton(
+                    onPressed: () {
+                      // Switch to Cylinders tab (index 1) — find HomeScreen state
+                      final homeState = context.findAncestorStateOfType<State>();
+                      if (homeState != null && homeState is dynamic) {
+                        // Navigate via bottom nav
+                      }
+                      context.push('/scan');
+                    },
+                    child: const Text('Add'),
+                  ),
+                ],
               ),
             ),
           ),
+          // Show the lowest cylinder prominently
+          if (_lowestDevice(devices) != null)
+            SliverToBoxAdapter(
+              child: _HeroCylinder(device: _lowestDevice(devices)!),
+            ),
+          // Other cylinders as compact cards
           SliverList(
             delegate: SliverChildBuilderDelegate(
               (context, index) {
-                final device = bt.deviceList[index];
-                return Card(
-                  margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(16),
-                    onTap: () => context.push('/bluetooth/${device.deviceId}'),
-                    child: Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Row(
-                        children: [
-                          LiquidCylinder(
-                            fillPercent: device.gasRemainingPercent,
-                            width: 56,
-                            height: 80,
-                          ),
-                          const SizedBox(width: 14),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  device.displayName,
-                                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
-                                ),
-                                const SizedBox(height: 4),
-                                Row(
-                                  children: [
-                                    Icon(Icons.bluetooth, size: 14, color: Colors.blue.shade300),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      '${device.rssi} dBm',
-                                      style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Icon(
-                                      Icons.battery_std,
-                                      size: 14,
-                                      color: device.batteryPercent > 20 ? Colors.green : Colors.red,
-                                    ),
-                                    const SizedBox(width: 2),
-                                    Text(
-                                      '${device.batteryPercent}%',
-                                      style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
-                                    ),
-                                  ],
-                                ),
-                              ],
+                final device = devices[index];
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                  child: Card(
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(16),
+                      onTap: () => context.push('/bluetooth/${device.deviceId}'),
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Row(
+                          children: [
+                            LiquidCylinder(
+                              fillPercent: device.gasRemainingPercent,
+                              width: 40,
+                              height: 56,
                             ),
-                          ),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              Text(
-                                device.gasRemainingPercent != null
-                                    ? '${device.gasRemainingPercent!.toStringAsFixed(0)}%'
-                                    : '${device.rawWeightKg.toStringAsFixed(1)} kg',
-                                style: TextStyle(
-                                  fontSize: 22,
-                                  fontWeight: FontWeight.bold,
-                                  color: device.gasRemainingPercent != null
-                                      ? AppColors.gasColor(device.gasRemainingPercent)
-                                      : AppColors.primaryDark,
-                                ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    device.displayName,
+                                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        device.connected
+                                            ? Icons.bluetooth_connected
+                                            : Icons.bluetooth_disabled,
+                                        size: 12,
+                                        color: device.connected ? Colors.blue : Colors.grey,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      if (device.cylinderType != null)
+                                        Text(
+                                          device.cylinderType!.name,
+                                          style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                                        ),
+                                      if (device.cylinderLifted) ...[
+                                        const SizedBox(width: 8),
+                                        const Icon(Icons.warning_amber, size: 12, color: Colors.red),
+                                        const SizedBox(width: 2),
+                                        const Text(
+                                          'Lifted!',
+                                          style: TextStyle(fontSize: 12, color: Colors.red),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                ],
                               ),
-                              if (device.gasRemainingKg != null)
-                                Text(
-                                  '${device.gasRemainingKg!.toStringAsFixed(1)} kg',
-                                  style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
-                                ),
-                            ],
-                          ),
-                        ],
+                            ),
+                            Text(
+                              device.gasRemainingPercent != null
+                                  ? '${device.gasRemainingPercent!.toStringAsFixed(0)}%'
+                                  : device.connected
+                                      ? '${device.rawWeightKg.toStringAsFixed(1)} kg'
+                                      : '--',
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                                color: device.gasRemainingPercent != null
+                                    ? AppColors.gasColor(device.gasRemainingPercent)
+                                    : AppColors.primaryDark,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
                 );
               },
-              childCount: bt.deviceList.length,
+              childCount: devices.length,
             ),
           ),
         ],
 
-        // ── Empty state: scanning for Bluetooth ──
-        if (bt.deviceList.isEmpty)
+        // ── Empty state: no cylinders yet ──
+        if (devices.isEmpty)
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 32, 16, 16),
@@ -169,23 +191,22 @@ class _DashboardTabState extends State<DashboardTab> {
                     ),
                     const SizedBox(height: 24),
                     Text(
-                      bt.scanning ? 'Scanning for nearby scales...' : 'No scales found nearby',
-                      style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
+                      'No cylinders yet',
+                      style: TextStyle(fontSize: 18, color: Colors.grey.shade600),
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Make sure Bluetooth is enabled and\nyou are near a GasPulse scale',
+                      'Add a GasPulse scale to start\nmonitoring your gas level',
                       textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 13, color: Colors.grey.shade400),
+                      style: TextStyle(fontSize: 14, color: Colors.grey.shade400),
                     ),
-                    const SizedBox(height: 16),
-                    if (!bt.scanning)
-                      ElevatedButton.icon(
-                        onPressed: () => context.read<BleProvider>().startScan(),
-                        icon: const Icon(Icons.bluetooth_searching),
-                        label: const Text('Scan Again'),
-                        style: ElevatedButton.styleFrom(minimumSize: const Size(180, 44)),
-                      ),
+                    const SizedBox(height: 24),
+                    ElevatedButton.icon(
+                      onPressed: () => context.push('/scan'),
+                      icon: const Icon(Icons.add),
+                      label: const Text('Add Scale'),
+                      style: ElevatedButton.styleFrom(minimumSize: const Size(180, 44)),
+                    ),
                   ],
                 ),
               ),
@@ -193,7 +214,7 @@ class _DashboardTabState extends State<DashboardTab> {
           ),
 
         // ══════════════════════════════════════════════
-        // ── CLOUD: Sites + Cylinders (only when logged in) ──
+        // ── CLOUD: Sites + Cylinders (business only) ──
         // ══════════════════════════════════════════════
         if (isBusinessUser) ...[
           SliverToBoxAdapter(
@@ -216,7 +237,7 @@ class _DashboardTabState extends State<DashboardTab> {
           const SliverToBoxAdapter(
             child: Padding(
               padding: EdgeInsets.fromLTRB(20, 16, 20, 8),
-              child: Text('All Cylinders', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+              child: Text('Cloud Cylinders', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
             ),
           ),
           _CylindersList(),
@@ -268,6 +289,110 @@ class _DashboardTabState extends State<DashboardTab> {
 
         const SliverToBoxAdapter(child: SizedBox(height: 80)),
       ],
+    );
+  }
+
+  /// Find the device with the lowest gas level for the hero card.
+  _device? _lowestDevice(List<dynamic> devices) {
+    if (devices.isEmpty) return null;
+    dynamic lowest;
+    double lowestPct = 101;
+    for (final d in devices) {
+      final pct = d.gasRemainingPercent;
+      if (pct != null && pct < lowestPct) {
+        lowestPct = pct;
+        lowest = d;
+      }
+    }
+    return lowest;
+  }
+}
+
+typedef _device = dynamic;
+
+class _HeroCylinder extends StatelessWidget {
+  final dynamic device;
+  const _HeroCylinder({required this.device});
+
+  @override
+  Widget build(BuildContext context) {
+    final pct = device.gasRemainingPercent as double?;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Card(
+        color: pct != null && pct < 15
+            ? Colors.red.shade50
+            : pct != null && pct < 30
+                ? Colors.orange.shade50
+                : null,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () => context.push('/bluetooth/${device.deviceId}'),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Row(
+              children: [
+                LiquidCylinder(
+                  fillPercent: pct,
+                  width: 70,
+                  height: 100,
+                ),
+                const SizedBox(width: 20),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (pct != null && pct < 15)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          margin: const EdgeInsets.only(bottom: 8),
+                          decoration: BoxDecoration(
+                            color: Colors.red,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: const Text(
+                            'LOW GAS',
+                            style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      Text(
+                        device.displayName as String,
+                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                      ),
+                      if (device.cylinderType != null) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          device.cylinderType.name as String,
+                          style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                        ),
+                      ],
+                      const SizedBox(height: 8),
+                      Text(
+                        pct != null
+                            ? '${pct.toStringAsFixed(0)}% remaining'
+                            : '${(device.rawWeightKg as double).toStringAsFixed(1)} kg',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: pct != null
+                              ? AppColors.gasColor(pct)
+                              : AppColors.primaryDark,
+                        ),
+                      ),
+                      if (device.gasRemainingKg != null)
+                        Text(
+                          '${(device.gasRemainingKg as double).toStringAsFixed(1)} kg gas',
+                          style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -427,7 +552,7 @@ class _CylindersList extends StatelessWidget {
               children: [
                 Icon(Icons.propane_tank_outlined, size: 48, color: Colors.grey.shade300),
                 const SizedBox(height: 12),
-                Text('No cylinders yet', style: TextStyle(fontSize: 15, color: Colors.grey.shade500)),
+                Text('No cloud cylinders yet', style: TextStyle(fontSize: 15, color: Colors.grey.shade500)),
                 const SizedBox(height: 4),
                 Text('Add a cylinder from your site page', style: TextStyle(fontSize: 13, color: Colors.grey.shade400)),
               ],

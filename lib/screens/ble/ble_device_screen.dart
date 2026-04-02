@@ -15,10 +15,29 @@ class BleDeviceScreen extends StatefulWidget {
 
 class _BleDeviceScreenState extends State<BleDeviceScreen> {
   final _nameCtrl = TextEditingController();
+  final _calWeightCtrl = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final ble = context.read<BleProvider>();
+      final device = ble.devices[widget.deviceId];
+      if (device != null) {
+        // Initialize name controller once
+        _nameCtrl.text = device.friendlyName ?? '';
+        // Auto-connect if not already connected
+        if (!device.connected && !ble.useDemoData) {
+          ble.connectDevice(widget.deviceId);
+        }
+      }
+    });
+  }
 
   @override
   void dispose() {
     _nameCtrl.dispose();
+    _calWeightCtrl.dispose();
     super.dispose();
   }
 
@@ -37,12 +56,79 @@ class _BleDeviceScreenState extends State<BleDeviceScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(device.displayName),
+        actions: [
+          if (!ble.useDemoData)
+            TextButton.icon(
+              onPressed: () {
+                if (device.connected) {
+                  ble.disconnectDevice(widget.deviceId);
+                } else {
+                  ble.connectDevice(widget.deviceId);
+                }
+              },
+              icon: Icon(
+                device.connected ? Icons.bluetooth_connected : Icons.bluetooth_disabled,
+                size: 18,
+              ),
+              label: Text(device.connected ? 'Disconnect' : 'Connect'),
+            ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Column(
           children: [
-            // ── Large cylinder visualization ──
+            // Cylinder lifted alert banner
+            if (device.cylinderLifted)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.red.shade200),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.warning_amber, color: Colors.red),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Cylinder has been lifted off the scale!',
+                        style: TextStyle(color: Colors.red, fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+            // Connection status
+            if (!device.connected && !ble.useDemoData)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.orange.shade200),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.bluetooth_disabled, color: Colors.orange),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Not connected — weight data may be stale',
+                        style: TextStyle(color: Colors.orange, fontSize: 13),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+            // Large cylinder visualization
             Center(
               child: LiquidCylinder(
                 fillPercent: device.gasRemainingPercent,
@@ -58,7 +144,7 @@ class _BleDeviceScreenState extends State<BleDeviceScreen> {
             ),
             const SizedBox(height: 32),
 
-            // ── Info cards ──
+            // Info cards
             Row(
               children: [
                 _InfoCard(
@@ -84,7 +170,7 @@ class _BleDeviceScreenState extends State<BleDeviceScreen> {
             ),
             const SizedBox(height: 32),
 
-            // ── Configuration ──
+            // Configuration
             const Align(
               alignment: Alignment.centerLeft,
               child: Text(
@@ -96,7 +182,7 @@ class _BleDeviceScreenState extends State<BleDeviceScreen> {
 
             // Friendly name
             TextField(
-              controller: _nameCtrl..text = device.friendlyName ?? '',
+              controller: _nameCtrl,
               decoration: InputDecoration(
                 labelText: 'Name this scale',
                 hintText: 'e.g. Kitchen Gas',
@@ -151,6 +237,132 @@ class _BleDeviceScreenState extends State<BleDeviceScreen> {
                 ),
               );
             }),
+
+            // ── Scale Calibration ──
+            const SizedBox(height: 32),
+            const Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Scale Calibration',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Tare resets the zero point (scale must be empty). '
+              'Calibrate sets the scale factor using a known weight.',
+              style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+            ),
+            const SizedBox(height: 16),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: device.connected
+                          ? () async {
+                              final ble = context.read<BleProvider>();
+                              final messenger = ScaffoldMessenger.of(context);
+                              final confirmed = await showDialog<bool>(
+                                context: context,
+                                builder: (ctx) => AlertDialog(
+                                  title: const Text('Tare Scale'),
+                                  content: const Text(
+                                    'Make sure the scale is completely empty, then tap Tare.',
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () => Navigator.pop(ctx, false),
+                                      child: const Text('Cancel'),
+                                    ),
+                                    ElevatedButton(
+                                      onPressed: () => Navigator.pop(ctx, true),
+                                      child: const Text('Tare'),
+                                    ),
+                                  ],
+                                ),
+                              );
+                              if (confirmed == true) {
+                                final ok = await ble.tare(widget.deviceId);
+                                messenger.showSnackBar(
+                                  SnackBar(content: Text(ok ? 'Tare successful' : 'Tare failed')),
+                                );
+                              }
+                            }
+                          : null,
+                      icon: const Icon(Icons.restart_alt),
+                      label: const Text('Tare (Zero)'),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _calWeightCtrl,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      decoration: const InputDecoration(
+                        labelText: 'Known weight (grams)',
+                        hintText: 'e.g. 1000',
+                        prefixIcon: Icon(Icons.fitness_center),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    ElevatedButton.icon(
+                      onPressed: device.connected
+                          ? () async {
+                              final ble = context.read<BleProvider>();
+                              final messenger = ScaffoldMessenger.of(context);
+                              final grams = double.tryParse(_calWeightCtrl.text.trim());
+                              if (grams == null || grams <= 0) {
+                                messenger.showSnackBar(
+                                  const SnackBar(content: Text('Enter a valid weight in grams')),
+                                );
+                                return;
+                              }
+                              final confirmed = await showDialog<bool>(
+                                context: context,
+                                builder: (ctx) => AlertDialog(
+                                  title: const Text('Calibrate Scale'),
+                                  content: Text(
+                                    'Place exactly ${grams.toStringAsFixed(0)}g on the scale, then tap Calibrate.',
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () => Navigator.pop(ctx, false),
+                                      child: const Text('Cancel'),
+                                    ),
+                                    ElevatedButton(
+                                      onPressed: () => Navigator.pop(ctx, true),
+                                      child: const Text('Calibrate'),
+                                    ),
+                                  ],
+                                ),
+                              );
+                              if (confirmed == true) {
+                                final ok = await ble.calibrate(widget.deviceId, grams);
+                                messenger.showSnackBar(
+                                  SnackBar(
+                                    content: Text(ok ? 'Calibration successful' : 'Calibration failed'),
+                                  ),
+                                );
+                              }
+                            }
+                          : null,
+                      icon: const Icon(Icons.tune),
+                      label: const Text('Calibrate'),
+                    ),
+                    if (!device.connected)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Text(
+                          'Connect to the scale to calibrate',
+                          style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
           ],
         ),
       ),

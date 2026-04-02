@@ -204,7 +204,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     Text('Already have an account? ',
                         style: TextStyle(color: Colors.grey.shade600)),
                     GestureDetector(
-                      onTap: () => context.go('/login'),
+                      onTap: () => context.pop(),
                       child: const Text(
                         'Sign In',
                         style: TextStyle(

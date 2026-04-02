@@ -1,25 +1,29 @@
 import 'cylinder_type.dart';
 
-/// A GasPulse scale discovered via BLE advertisement
+/// A GasPulse scale discovered and connected via BLE
 class BleScaleDevice {
   final String deviceId;
   final String? localName;
-  final int rawWeightGrams;
+  final double rawWeightGrams;
   final int batteryPercent;
   final int rssi;
   final DateTime lastSeen;
   final String? friendlyName;
   final CylinderType? cylinderType;
+  final bool connected;
+  final bool cylinderLifted;
 
   BleScaleDevice({
     required this.deviceId,
     this.localName,
-    required this.rawWeightGrams,
-    required this.batteryPercent,
+    this.rawWeightGrams = 0,
+    this.batteryPercent = 0,
     required this.rssi,
     required this.lastSeen,
     this.friendlyName,
     this.cylinderType,
+    this.connected = false,
+    this.cylinderLifted = false,
   });
 
   String get displayName => friendlyName ?? localName ?? deviceId;
@@ -42,12 +46,14 @@ class BleScaleDevice {
   BleScaleDevice copyWith({
     String? deviceId,
     String? localName,
-    int? rawWeightGrams,
+    double? rawWeightGrams,
     int? batteryPercent,
     int? rssi,
     DateTime? lastSeen,
     String? friendlyName,
     CylinderType? cylinderType,
+    bool? connected,
+    bool? cylinderLifted,
   }) =>
       BleScaleDevice(
         deviceId: deviceId ?? this.deviceId,
@@ -58,6 +64,8 @@ class BleScaleDevice {
         lastSeen: lastSeen ?? this.lastSeen,
         friendlyName: friendlyName ?? this.friendlyName,
         cylinderType: cylinderType ?? this.cylinderType,
+        connected: connected ?? this.connected,
+        cylinderLifted: cylinderLifted ?? this.cylinderLifted,
       );
 }
 

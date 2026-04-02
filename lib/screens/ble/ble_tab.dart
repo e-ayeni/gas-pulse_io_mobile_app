@@ -11,65 +11,55 @@ class BleTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ble = context.watch<BleProvider>();
+    final devices = ble.deviceList;
 
-    return CustomScrollView(
-      slivers: [
-        SliverAppBar(
-          floating: true,
-          title: const Text('Nearby Scales', style: TextStyle(fontWeight: FontWeight.bold)),
-          actions: [
-            if (ble.scanning)
-              const Padding(
-                padding: EdgeInsets.only(right: 16),
-                child: Center(
-                  child: SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
-                ),
-              )
-            else
-              IconButton(
-                icon: const Icon(Icons.refresh),
-                onPressed: () => ble.startScan(),
-              ),
-          ],
-        ),
-        if (ble.deviceList.isEmpty)
-          SliverFillRemaining(
-            child: Center(
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('My Cylinders', style: TextStyle(fontWeight: FontWeight.bold)),
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => context.push('/scan'),
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
+        icon: const Icon(Icons.add),
+        label: const Text('Add Scale'),
+      ),
+      body: devices.isEmpty
+          ? Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.bluetooth_searching, size: 64, color: Colors.grey.shade300),
+                  Icon(Icons.propane_tank_outlined, size: 64, color: Colors.grey.shade300),
                   const SizedBox(height: 16),
                   Text(
-                    ble.scanning ? 'Scanning...' : 'No scales found nearby',
-                    style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
+                    'No cylinders yet',
+                    style: TextStyle(fontSize: 18, color: Colors.grey.shade600),
                   ),
-                  if (!ble.scanning) ...[
-                    const SizedBox(height: 16),
-                    ElevatedButton.icon(
-                      onPressed: () => ble.startScan(),
-                      icon: const Icon(Icons.bluetooth_searching),
-                      label: const Text('Scan'),
-                      style: ElevatedButton.styleFrom(minimumSize: const Size(160, 44)),
-                    ),
-                  ],
+                  const SizedBox(height: 8),
+                  Text(
+                    'Add a GasPulse scale to start\nmonitoring your gas cylinders',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 14, color: Colors.grey.shade400),
+                  ),
+                  const SizedBox(height: 24),
+                  ElevatedButton.icon(
+                    onPressed: () => context.push('/scan'),
+                    icon: const Icon(Icons.add),
+                    label: const Text('Add Scale'),
+                    style: ElevatedButton.styleFrom(minimumSize: const Size(180, 44)),
+                  ),
                 ],
               ),
-            ),
-          )
-        else
-          SliverList(
-            delegate: SliverChildBuilderDelegate(
-              (context, index) {
-                final device = ble.deviceList[index];
+            )
+          : ListView.builder(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 80),
+              itemCount: devices.length,
+              itemBuilder: (context, index) {
+                final device = devices[index];
                 final hasCylType = device.cylinderType != null;
 
                 return Card(
-                  margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                  margin: const EdgeInsets.only(bottom: 8),
                   child: InkWell(
                     borderRadius: BorderRadius.circular(16),
                     onTap: () => context.push('/bluetooth/${device.deviceId}'),
@@ -92,16 +82,61 @@ class BleTab extends StatelessWidget {
                                   style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                                 ),
                                 const SizedBox(height: 4),
-                                Text(
-                                  device.deviceId,
-                                  style: TextStyle(fontSize: 12, color: Colors.grey.shade500, fontFamily: 'monospace'),
-                                ),
-                                const SizedBox(height: 4),
-                                if (!hasCylType)
+                                if (hasCylType)
                                   Text(
-                                    'Tap to configure cylinder type',
-                                    style: TextStyle(fontSize: 12, color: AppColors.accent, fontStyle: FontStyle.italic),
+                                    device.cylinderType!.name,
+                                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
                                   ),
+                                const SizedBox(height: 4),
+                                Row(
+                                  children: [
+                                    Icon(
+                                      device.connected
+                                          ? Icons.bluetooth_connected
+                                          : Icons.bluetooth_disabled,
+                                      size: 14,
+                                      color: device.connected ? Colors.blue : Colors.grey,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      device.connected ? 'Connected' : 'Disconnected',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: device.connected ? Colors.blue : Colors.grey.shade500,
+                                      ),
+                                    ),
+                                    if (device.connected && device.batteryPercent > 0) ...[
+                                      const SizedBox(width: 12),
+                                      Icon(
+                                        Icons.battery_std,
+                                        size: 14,
+                                        color: device.batteryPercent > 20 ? Colors.green : Colors.red,
+                                      ),
+                                      const SizedBox(width: 2),
+                                      Text(
+                                        '${device.batteryPercent}%',
+                                        style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                                if (device.cylinderLifted) ...[
+                                  const SizedBox(height: 4),
+                                  const Row(
+                                    children: [
+                                      Icon(Icons.warning_amber, size: 14, color: Colors.red),
+                                      SizedBox(width: 4),
+                                      Text(
+                                        'Cylinder lifted!',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.red,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
                               ],
                             ),
                           ),
@@ -111,33 +146,22 @@ class BleTab extends StatelessWidget {
                               Text(
                                 hasCylType
                                     ? '${device.gasRemainingPercent?.toStringAsFixed(0) ?? "--"}%'
-                                    : '${device.rawWeightKg.toStringAsFixed(1)} kg',
+                                    : device.connected
+                                        ? '${device.rawWeightKg.toStringAsFixed(1)} kg'
+                                        : '--',
                                 style: TextStyle(
-                                  fontSize: 22,
+                                  fontSize: 24,
                                   fontWeight: FontWeight.bold,
                                   color: hasCylType
                                       ? AppColors.gasColor(device.gasRemainingPercent)
                                       : AppColors.primaryDark,
                                 ),
                               ),
-                              const SizedBox(height: 4),
-                              Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(Icons.signal_cellular_alt,
-                                      size: 14,
-                                      color: device.rssi > -70 ? Colors.green : Colors.orange),
-                                  const SizedBox(width: 6),
-                                  Icon(
-                                    Icons.battery_std,
-                                    size: 14,
-                                    color: device.batteryPercent > 20 ? Colors.green : Colors.red,
-                                  ),
-                                  const SizedBox(width: 2),
-                                  Text('${device.batteryPercent}%',
-                                      style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
-                                ],
-                              ),
+                              if (hasCylType && device.gasRemainingKg != null)
+                                Text(
+                                  '${device.gasRemainingKg!.toStringAsFixed(1)} kg',
+                                  style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                                ),
                             ],
                           ),
                         ],
@@ -146,10 +170,7 @@ class BleTab extends StatelessWidget {
                   ),
                 );
               },
-              childCount: ble.deviceList.length,
             ),
-          ),
-      ],
     );
   }
 }

@@ -15,12 +15,27 @@ class BleProvider extends ChangeNotifier {
   bool _useDemoData = false;
 
   BleProvider(this._ble, this._storage) {
-    _sub = _ble.devicesStream.listen((devices) {
-      _devices = devices;
-      notifyListeners();
-    });
-    // Eagerly load demo data if BLE is unavailable (e.g. simulator)
+    _sub = _ble.devicesStream.listen(_mergeDevices);
     _initDemoIfNeeded();
+  }
+
+  /// Merge incoming service data with locally-set config (name, cylinder type).
+  void _mergeDevices(Map<String, BleScaleDevice> incoming) {
+    for (final entry in incoming.entries) {
+      final existing = _devices[entry.key];
+      if (existing != null) {
+        // Preserve locally-configured fields, update live data
+        _devices[entry.key] = entry.value.copyWith(
+          friendlyName: existing.friendlyName,
+          cylinderType: existing.cylinderType,
+        );
+      } else {
+        _devices[entry.key] = entry.value;
+      }
+    }
+    // Remove devices no longer in the service
+    _devices.removeWhere((key, _) => !incoming.containsKey(key));
+    notifyListeners();
   }
 
   Future<void> _initDemoIfNeeded() async {
@@ -28,7 +43,6 @@ class BleProvider extends ChangeNotifier {
       final isAvailable = await _ble.isAvailable;
       if (!isAvailable) loadDemoData();
     } catch (_) {
-      // BLE not supported (e.g. simulator) — show demo data
       loadDemoData();
     }
   }
@@ -45,45 +59,49 @@ class BleProvider extends ChangeNotifier {
     final med = CylinderType.defaults[3]; // 25kg Medium
 
     _devices = {
-      'GP-AA:BB:CC:01': BleScaleDevice(
-        deviceId: 'GP-AA:BB:CC:01',
-        localName: 'GP-Scale-01',
+      'GasPulse_A1B2C3': BleScaleDevice(
+        deviceId: 'GasPulse_A1B2C3',
+        localName: 'GasPulse_A1B2C3',
         rawWeightGrams: 24200, // 15000 tare + 9200 gas = 73.6%
         batteryPercent: 87,
         rssi: -52,
         lastSeen: DateTime.now(),
         friendlyName: 'Kitchen Gas',
         cylinderType: std,
+        connected: true,
       ),
-      'GP-AA:BB:CC:02': BleScaleDevice(
-        deviceId: 'GP-AA:BB:CC:02',
-        localName: 'GP-Scale-02',
+      'GasPulse_D4E5F6': BleScaleDevice(
+        deviceId: 'GasPulse_D4E5F6',
+        localName: 'GasPulse_D4E5F6',
         rawWeightGrams: 6100, // 5200 tare + 900 gas = 30%
         batteryPercent: 42,
         rssi: -68,
         lastSeen: DateTime.now().subtract(const Duration(minutes: 5)),
         friendlyName: 'Backup Cylinder',
         cylinderType: mini,
+        connected: true,
       ),
-      'GP-AA:BB:CC:03': BleScaleDevice(
-        deviceId: 'GP-AA:BB:CC:03',
-        localName: 'GP-Scale-03',
+      'GasPulse_G7H8I9': BleScaleDevice(
+        deviceId: 'GasPulse_G7H8I9',
+        localName: 'GasPulse_G7H8I9',
         rawWeightGrams: 8100, // 7500 tare + 600 gas = 10%
         batteryPercent: 15,
         rssi: -75,
         lastSeen: DateTime.now().subtract(const Duration(minutes: 12)),
         friendlyName: 'Generator',
         cylinderType: camp,
+        connected: true,
       ),
-      'GP-AA:BB:CC:04': BleScaleDevice(
-        deviceId: 'GP-AA:BB:CC:04',
-        localName: 'GP-Scale-04',
+      'GasPulse_J0K1L2': BleScaleDevice(
+        deviceId: 'GasPulse_J0K1L2',
+        localName: 'GasPulse_J0K1L2',
         rawWeightGrams: 45500, // 22000 tare + 23500 gas = 94%
         batteryPercent: 96,
         rssi: -45,
         lastSeen: DateTime.now(),
         friendlyName: 'Workshop Tank',
         cylinderType: med,
+        connected: true,
       ),
     };
     _useDemoData = true;
@@ -117,6 +135,30 @@ class BleProvider extends ChangeNotifier {
     await _ble.stopScan();
     _scanning = false;
     notifyListeners();
+  }
+
+  /// Connect to a discovered GasPulse scale
+  Future<void> connectDevice(String deviceId) async {
+    if (_useDemoData) return;
+    await _ble.connectToDevice(deviceId);
+  }
+
+  /// Disconnect from a scale
+  Future<void> disconnectDevice(String deviceId) async {
+    if (_useDemoData) return;
+    await _ble.disconnectDevice(deviceId);
+  }
+
+  /// Tare (re-zero) the scale. Must be empty.
+  Future<bool> tare(String deviceId) async {
+    if (_useDemoData) return true;
+    return _ble.tare(deviceId);
+  }
+
+  /// Calibrate with a known reference weight in grams.
+  Future<bool> calibrate(String deviceId, double knownWeightGrams) async {
+    if (_useDemoData) return true;
+    return _ble.calibrate(deviceId, knownWeightGrams);
   }
 
   Future<void> configureDevice(

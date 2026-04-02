@@ -1,4 +1,5 @@
 import '../models/alert.dart';
+import '../models/analytics.dart';
 import '../models/cylinder.dart';
 import '../models/gateway.dart';
 import '../models/site.dart';
@@ -219,6 +220,66 @@ class DemoData {
 
     return readings;
   }
+
+  static ConsumptionAnalytics get consumptionAnalytics => ConsumptionAnalytics(
+        byDayOfWeek: [
+          DayOfWeekConsumption(day: 1, dayName: 'Mon', avgConsumptionKg: 0.42),
+          DayOfWeekConsumption(day: 2, dayName: 'Tue', avgConsumptionKg: 0.38),
+          DayOfWeekConsumption(day: 3, dayName: 'Wed', avgConsumptionKg: 0.45),
+          DayOfWeekConsumption(day: 4, dayName: 'Thu', avgConsumptionKg: 0.40),
+          DayOfWeekConsumption(day: 5, dayName: 'Fri', avgConsumptionKg: 0.55),
+          DayOfWeekConsumption(day: 6, dayName: 'Sat', avgConsumptionKg: 0.72),
+          DayOfWeekConsumption(day: 7, dayName: 'Sun', avgConsumptionKg: 0.68),
+        ],
+        byShift: [
+          ShiftConsumption(shiftName: 'Morning', shiftHours: '06:00–12:00', avgConsumptionKg: 0.28),
+          ShiftConsumption(shiftName: 'Afternoon', shiftHours: '12:00–18:00', avgConsumptionKg: 0.18),
+          ShiftConsumption(shiftName: 'Evening', shiftHours: '18:00–22:00', avgConsumptionKg: 0.14),
+        ],
+        byMonth: [
+          MonthlyConsumption(year: 2025, month: 11, label: 'Nov', totalConsumptionKg: 11.6),
+          MonthlyConsumption(year: 2025, month: 12, label: 'Dec', totalConsumptionKg: 13.2),
+          MonthlyConsumption(year: 2026, month: 1, label: 'Jan', totalConsumptionKg: 12.4),
+          MonthlyConsumption(year: 2026, month: 2, label: 'Feb', totalConsumptionKg: 10.8),
+          MonthlyConsumption(year: 2026, month: 3, label: 'Mar', totalConsumptionKg: 11.2),
+          MonthlyConsumption(year: 2026, month: 4, label: 'Apr', totalConsumptionKg: 4.2),
+        ],
+      );
+
+  /// Fallback local chart shown when guest has fewer than 2 BLE snapshots.
+  static List<LocalDayConsumption> get localDayChart {
+    final now = DateTime.now();
+    return [
+      LocalDayConsumption(date: now.subtract(const Duration(days: 4)), consumptionKg: 0.44),
+      LocalDayConsumption(date: now.subtract(const Duration(days: 3)), consumptionKg: 0.38),
+      LocalDayConsumption(date: now.subtract(const Duration(days: 2)), consumptionKg: 0.51),
+      LocalDayConsumption(date: now.subtract(const Duration(days: 1)), consumptionKg: 0.42),
+      LocalDayConsumption(date: now, consumptionKg: 0.29),
+    ];
+  }
+
+  static List<CylinderAnomaly> get anomalies => [
+        CylinderAnomaly(
+          cylinderId: 'demo-cyl-2',
+          friendlyName: 'Backup Cylinder',
+          siteName: 'Home',
+          type: AnomalyType.fastConsumption,
+          actualKg: 0.9,
+          baselineKg: 0.4,
+          detectedAt: DateTime.now().subtract(const Duration(hours: 5)),
+          description: 'Consumption is 2× higher than usual — possible tap left open.',
+        ),
+        CylinderAnomaly(
+          cylinderId: 'demo-cyl-3',
+          friendlyName: 'Generator',
+          siteName: 'Office',
+          type: AnomalyType.possibleLeak,
+          actualKg: 0.6,
+          baselineKg: 0.3,
+          detectedAt: DateTime.now().subtract(const Duration(days: 1)),
+          description: 'Weight dropping while device appears idle — check for leaks.',
+        ),
+      ];
 
   static List<Alert> alerts = [
     Alert(

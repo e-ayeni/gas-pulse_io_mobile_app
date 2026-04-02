@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import '../models/alert.dart';
 import '../models/ble_device.dart';
 import '../models/cylinder_type.dart';
 import '../services/ble_service.dart';
@@ -13,6 +14,8 @@ class BleProvider extends ChangeNotifier {
   bool _scanning = false;
   StreamSubscription? _sub;
   bool _useDemoData = false;
+  // Tracks which alert conditions are currently active to avoid re-firing
+  final Set<String> _firedAlerts = {};
 
   BleProvider(this._ble, this._storage) {
     _sub = _ble.devicesStream.listen(_mergeDevices);
@@ -24,7 +27,6 @@ class BleProvider extends ChangeNotifier {
     for (final entry in incoming.entries) {
       final existing = _devices[entry.key];
       if (existing != null) {
-        // Preserve locally-configured fields, update live data
         _devices[entry.key] = entry.value.copyWith(
           friendlyName: existing.friendlyName,
           cylinderType: existing.cylinderType,
@@ -33,8 +35,81 @@ class BleProvider extends ChangeNotifier {
         _devices[entry.key] = entry.value;
       }
     }
-    // Remove devices no longer in the service
     _devices.removeWhere((key, _) => !incoming.containsKey(key));
+    _recordDailySnapshot();
+    _checkAlerts();
+    notifyListeners();
+  }
+
+  void _recordDailySnapshot() {
+    final totalKg = _devices.values
+        .where((d) => d.gasRemainingKg != null)
+        .fold(0.0, (sum, d) => sum + d.gasRemainingKg!);
+    if (totalKg == 0) return;
+    final today = DateTime.now().toIso8601String().substring(0, 10);
+    _storage.saveDailySnapshot(LocalDailySnapshot(date: today, totalGasKg: totalKg));
+  }
+
+  void _checkAlerts() {
+    for (final device in _devices.values) {
+      final pct = device.gasRemainingPercent;
+
+      // Critical gas (≤ 10%)
+      final critKey = '${device.deviceId}:critical';
+      if (pct != null && pct <= 10 && !_firedAlerts.contains(critKey)) {
+        _firedAlerts.add(critKey);
+        _storage.saveLocalAlert(Alert(
+          id: '${device.deviceId}-crit-${DateTime.now().millisecondsSinceEpoch}',
+          cylinderId: device.deviceId,
+          alertType: AlertType.criticalGas,
+          message: '${device.displayName} is critically low at ${pct.toStringAsFixed(0)}%',
+          isRead: false,
+          createdAt: DateTime.now(),
+        ));
+      } else if (pct != null && pct > 15) {
+        _firedAlerts.remove(critKey);
+      }
+
+      // Low gas (≤ 20%, above critical)
+      final lowKey = '${device.deviceId}:low';
+      if (pct != null && pct <= 20 && pct > 10 && !_firedAlerts.contains(lowKey)) {
+        _firedAlerts.add(lowKey);
+        _storage.saveLocalAlert(Alert(
+          id: '${device.deviceId}-low-${DateTime.now().millisecondsSinceEpoch}',
+          cylinderId: device.deviceId,
+          alertType: AlertType.lowGas,
+          message: '${device.displayName} is running low at ${pct.toStringAsFixed(0)}%',
+          isRead: false,
+          createdAt: DateTime.now(),
+        ));
+      } else if (pct != null && pct > 25) {
+        _firedAlerts.remove(lowKey);
+      }
+
+      // Low battery (≤ 15%)
+      final battKey = '${device.deviceId}:battery';
+      if (device.batteryPercent > 0 &&
+          device.batteryPercent <= 15 &&
+          !_firedAlerts.contains(battKey)) {
+        _firedAlerts.add(battKey);
+        _storage.saveLocalAlert(Alert(
+          id: '${device.deviceId}-batt-${DateTime.now().millisecondsSinceEpoch}',
+          cylinderId: device.deviceId,
+          alertType: AlertType.batteryLow,
+          message: '${device.displayName} scale battery is at ${device.batteryPercent}%',
+          isRead: false,
+          createdAt: DateTime.now(),
+        ));
+      } else if (device.batteryPercent > 20) {
+        _firedAlerts.remove(battKey);
+      }
+    }
+  }
+
+  List<Alert> get localAlerts => _storage.getLocalAlerts();
+
+  void markLocalAlertRead(String alertId) {
+    _storage.markLocalAlertRead(alertId);
     notifyListeners();
   }
 

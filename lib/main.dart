@@ -11,12 +11,14 @@ import 'providers/auth_provider.dart';
 import 'providers/site_provider.dart';
 import 'providers/cylinder_provider.dart';
 import 'providers/alert_provider.dart';
+import 'providers/analytics_provider.dart';
 import 'providers/ble_provider.dart';
 import 'screens/auth/landing_screen.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/auth/register_screen.dart';
 import 'screens/home/home_screen.dart';
 import 'screens/ble/ble_device_screen.dart';
+import 'screens/ble/scan_screen.dart';
 import 'screens/sites/sites_screen.dart';
 import 'screens/sites/site_detail_screen.dart';
 import 'screens/sites/add_site_screen.dart';
@@ -71,6 +73,12 @@ class _GasPulseAppState extends State<GasPulseApp> {
         GoRoute(
           path: '/home',
           builder: (context, state) => const HomeScreen(),
+        ),
+
+        // Scan for new scales
+        GoRoute(
+          path: '/scan',
+          builder: (context, state) => const ScanScreen(),
         ),
 
         // Bluetooth device detail / config
@@ -142,6 +150,7 @@ class _GasPulseAppState extends State<GasPulseApp> {
         ChangeNotifierProvider(create: (_) => SiteProvider(_apiService)),
         ChangeNotifierProvider(create: (_) => CylinderProvider(_apiService)),
         ChangeNotifierProvider(create: (_) => AlertProvider(_apiService)),
+        ChangeNotifierProvider(create: (_) => AnalyticsProvider(_apiService, widget.storage)),
         ChangeNotifierProvider(create: (_) => BleProvider(_bleService, widget.storage)),
       ],
       child: MaterialApp.router(

@@ -1,3 +1,11 @@
+/// A single day's computed gas consumption for the local guest chart
+class LocalDayConsumption {
+  final DateTime date;
+  final double consumptionKg;
+
+  LocalDayConsumption({required this.date, required this.consumptionKg});
+}
+
 enum AnomalyType { possibleLeak, fastConsumption, cylinderRemoved }
 
 AnomalyType anomalyTypeFromString(String s) {

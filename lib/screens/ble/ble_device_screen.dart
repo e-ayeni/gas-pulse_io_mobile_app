@@ -128,6 +128,48 @@ class _BleDeviceScreenState extends State<BleDeviceScreen> {
                 ),
               ),
 
+            // Weight sanity warning — only when type is set and reading is below tare
+            if (device.cylinderType != null &&
+                device.rawWeightGrams > 0 &&
+                device.rawWeightGrams < device.cylinderType!.tareWeightGrams)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: Colors.amber.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.amber.shade300),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.warning_amber_rounded, color: Colors.amber.shade700),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text.rich(
+                        TextSpan(
+                          children: [
+                            const TextSpan(
+                              text: 'Reading looks wrong. ',
+                              style: TextStyle(fontWeight: FontWeight.w600),
+                            ),
+                            TextSpan(
+                              text:
+                                  'Scale reads ${device.rawWeightKg.toStringAsFixed(2)} kg but a '
+                                  '${device.cylinderType!.name} empty cylinder weighs '
+                                  '${device.cylinderType!.tareWeightKg.toStringAsFixed(1)} kg. '
+                                  'Check the cylinder type is correct, or re-tare the scale.',
+                            ),
+                          ],
+                        ),
+                        style: TextStyle(fontSize: 13, color: Colors.amber.shade900),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
             // Large cylinder visualization
             Center(
               child: LiquidCylinder(
@@ -260,8 +302,24 @@ class _BleDeviceScreenState extends State<BleDeviceScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    if (device.cylinderType == null)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: Row(
+                          children: [
+                            Icon(Icons.info_outline, size: 16, color: Colors.grey.shade500),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Select a cylinder type above before calibrating.',
+                                style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     OutlinedButton.icon(
-                      onPressed: device.connected
+                      onPressed: device.connected && device.cylinderType != null
                           ? () async {
                               final ble = context.read<BleProvider>();
                               final messenger = ScaffoldMessenger.of(context);
@@ -307,7 +365,7 @@ class _BleDeviceScreenState extends State<BleDeviceScreen> {
                     ),
                     const SizedBox(height: 12),
                     ElevatedButton.icon(
-                      onPressed: device.connected
+                      onPressed: device.connected && device.cylinderType != null
                           ? () async {
                               final ble = context.read<BleProvider>();
                               final messenger = ScaffoldMessenger.of(context);
@@ -350,11 +408,13 @@ class _BleDeviceScreenState extends State<BleDeviceScreen> {
                       icon: const Icon(Icons.tune),
                       label: const Text('Calibrate'),
                     ),
-                    if (!device.connected)
+                    if (!device.connected || device.cylinderType == null)
                       Padding(
                         padding: const EdgeInsets.only(top: 8),
                         child: Text(
-                          'Connect to the scale to calibrate',
+                          !device.connected
+                              ? 'Connect to the scale to calibrate'
+                              : 'Select a cylinder type to enable calibration',
                           style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
                           textAlign: TextAlign.center,
                         ),

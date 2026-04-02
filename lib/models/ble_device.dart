@@ -69,6 +69,21 @@ class BleScaleDevice {
       );
 }
 
+/// A single day's total gas snapshot across all BLE devices (for guest chart)
+class LocalDailySnapshot {
+  final String date; // ISO date: "2026-04-02"
+  final double totalGasKg;
+
+  LocalDailySnapshot({required this.date, required this.totalGasKg});
+
+  factory LocalDailySnapshot.fromJson(Map<String, dynamic> json) => LocalDailySnapshot(
+        date: json['date'] as String,
+        totalGasKg: (json['totalGasKg'] as num).toDouble(),
+      );
+
+  Map<String, dynamic> toJson() => {'date': date, 'totalGasKg': totalGasKg};
+}
+
 /// Persisted local scale config
 class LocalScaleConfig {
   final String deviceId;
